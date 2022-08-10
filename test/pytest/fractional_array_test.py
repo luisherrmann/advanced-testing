@@ -9,7 +9,7 @@ import tempfile
 from torchtools.fractional_array import FractionalArray
 
 
-class TestFractionalTensor(object):
+class TestFractionalArray(object):
 
     @pytest.fixture
     def handleTmp(self):

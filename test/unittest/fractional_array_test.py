@@ -10,7 +10,7 @@ import tempfile
 from torchtools.fractional_array import FractionalArray
 
 
-class FractionalTensorTest(unittest.TestCase):
+class FractionalArrayTest(unittest.TestCase):
 
     def setUp(self) -> None:
         if not os.path.exists('tmp'):
