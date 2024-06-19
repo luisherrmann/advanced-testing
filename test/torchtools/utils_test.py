@@ -11,486 +11,510 @@ from torchtools.utils import divide_int, CustomModel
 def pytest_generate_tests(metafunc):
     if "test_divide_int_vhook" in metafunc.function.__name__:
         all_cases = [
-            *TestUtils.TEST_DIVIDE_INT_CASES,
-            *TestUtils.TEST_DIVIDE_INT_ERR_CASES,
+            *TEST_DIVIDE_INT_CASES,
+            *TEST_DIVIDE_INT_ERR_CASES,
         ]
         metafunc.parametrize("divide_int_cases", all_cases)
 
 
-class TestUtils(object):
+### Parametrizing tests
 
-    ### Parametrizing tests
+# There are three diffent mechanisms to parametrize tests in pytest:
+# 1. Using the `@pytest.mark.parametrize` decorator to annotate a test function
+# 2. Using the `parametrize` argument of the `@pytest.fixture` decorator
+# 3. Using the `pytest_generate_tests` hook to generate tests dynamically
 
-    # There are three diffent mechanisms to parametrize tests in pytest:
-    # 1. Using the `@pytest.mark.parametrize` decorator to annotate a test function
-    # 2. Using the `parametrize` argument of the `@pytest.fixture` decorator
-    # 3. Using the `pytest_generate_tests` hook to generate tests dynamically
+## Parametrizing tests with `@pytest.mark.parametrize`:
 
-    ## Parametrizing tests with `@pytest.mark.parametrize`:
+# We can use the @pytest.mark.parametrize decorator to parametrize tests and run them with different inputs.
+# The test below covers all equivalence classes of the (input, output) space for the division of two integers:
+#
+# We can consider two classes of inputs regarding validity:
+# 1. int (valid input)
+# 2. other (invalid input)
+#
+# Additionally, we can further subdivide the valid input domain into 4 meaningful classes over the ring (Z, +, *), namely:
+# 1. 0 (neutral element of summation)
+# 2. 1 (neutral element of multiplication)
+# 3. pos (positive integers)
+# 4. neg (negative integers)
+#
+# Finally, we can consider 3 classes regarding divisibility:
+# 1. x mod y == 0 (divisible)
+# 2. x mod y != 0 (not divisible)
+# 3. x / y == nan (not defined)
+#
+# To exhaustively test the function, we would need to test all possible combinations of these classes.
+# To do so, we select a representative from each class and test all possible combinations of these representatives.
+#
+# We select the following representatives:
+#
+# Validity:
+# 1. 2 (int)
+# 2. 2.0 (float)
+#
+# Integer range:
+# 1. 0
+# 2. 1
+# 3. 2
+# 4. -2
+#
+# Divisibility:
+# 1. (4, 2)
+# 2. (3, 2)
+# 3. (4, 0)
+#
+# The brute-force way to cover all possible combinations would be to consider the cartesian product of the representatives:
+# (2.0, 4, 3, 2, 1, 0, -1, -2, -3, -4) x (2.0, 4, 3, 2, 1, 0, -1, -2, -3, -4)
+#
+# (dividend, divisor, quotient)
+# ---
+# (2.0, 4, TypeError)
+# ...
+# (2.0, -4, TypeError)
+# (4, 4, 1)
+# (4, 3, 1)
+# (4, 2, 2)
+# (4, 1, 4)
+# (4, 0, math.nan)
+# (4, -1, -4)
+# (4, -2, -2)
+# (4, -3, -1)
+# (4, -4, -1)
+# (3, 4, 0)
+# (3, 3, 1)
+# (3, 2, 1)
+# (3, 1, 3)
+# (3, 0, math.nan) !
+# (3, -1, -3)
+# (3, -2, -1)
+# (3, -3, -1)
+# (3, -4, -1)
+# (2, 4, 0) !
+# (2, 3, 0)
+# (2, 2, 1)
+# (2, 1, 2)
+# (2, 0, math.nan) !
+# (2, -1, -2)
+# (2, -2, -1)
+# (2, -3, -1)
+# (2, -4, -1) !
+# (1, 4, 0) !
+# (1, 3, 0) !
+# (1, 2, 0)
+# (1, 1, 1)
+# (1, -1, -1)
+# (1, -2, -1)
+# (1, -3, -1) !
+# (1, -4, -1) !
+# (0, 4, 0) !
+# (0, 3, 0) !
+# (0, 2, 0)
+# (0, 1, 0)
+# (0, 0, math.nan)
+# (0, -1, 0)
+# (0, -2, 0)
+# (0, -3, 0) !
+# (0, -3, 0) !
+# ...
+# (-4, 4, 1)
+# (-4, 3, -2)
+# (-4, 2, -2)
+# (-4, 1, -4)
+# (-4, 0, math.nan) !
+# (-4, -1, 4)
+# (-4, -2, 2)
+# (-4, -3, 1)
+# (-4, -4, 1)
+#
+# However, many of these problems are equivalent and, given our knowledge about the behaviour and implementation,
+# do not provide any additional information regarding the correctness. I have highlighted some of these with a !.
+#
+# Perhaps a more succinct selection of tests would be the following:
+#
+# (dividend, divisor, quotient)
+# ---
+# (2.0, 4, TypeError)
+# (4, 2.0, TypeError)
+# (4, 4, 1)
+# (4, 3, 1)
+# (4, 2, 2)
+# (4, 1, 4)
+# (4, 0, math.nan)
+# (4, -1, -4)
+# (4, -2, -2)
+# (4, -3, -2)
+# (4, -4, -1)
+# (3, 4, 0)
+# (3, 3, 1)
+# (3, 2, 1)
+# (3, 1, 3)
+# (3, -1, -3)
+# (3, -2, -2)
+# (3, -3, -1)
+# (3, -4, -1)
+# (2, 3, 0)
+# (2, 2, 1)
+# (2, 1, 2)
+# (2, -1, -2)
+# (2, -2, -1)
+# (2, -3, -1)
+# (1, 2, 0)
+# (1, 1, 1)
+# (1, -1, -1)
+# (1, -2, -1)
+# (0, 2, 0)
+# (0, 1, 0)
+# (0, 0, math.nan)
+# (0, -1, 0)
+# (0, -2, 0)
+# (-1, 2, -1)
+# (-1, 1, -1)
+# (-1, -1, 1)
+# (-1, -2, 0)
+# (-2, 3, -1)
+# (-2, 2, -1)
+# (-2, 1, -2)
+# (-2, -1, 2)
+# (-2, -2, 1)
+# (-2, -3, 0)
+# (-3, 4, -1)
+# (-3, 3, -1)
+# (-3, 2, -2)
+# (-3, 1, -3)
+# (-3, -1, 3)
+# (-3, -2, 1)
+# (-3, -3, 1)
+# (-3, -4, 0)
+# (-4, 4, -1)
+# (-4, 3, -2)
+# (-4, 2, -2)
+# (-4, 1, -4)
+# (-4, 0, math.nan)
+# (-4, -1, 4)
+# (-4, -2, 2)
+# (-4, -3, 1)
+# (-4, -4, 1)
+#
+# Of course it is impossible to test all possible combinations, so one might decide to drop some
+# of the tests above. Now let's see how we can implement this in pytest:
 
-    # We can use the @pytest.mark.parametrize decorator to parametrize tests and run them with different inputs.
-    # The test below covers all equivalence classes of the (input, output) space for the division of two integers:
-    #
-    # We can consider two classes of inputs regarding validity:
-    # 1. int (valid input)
-    # 2. other (invalid input)
-    #
-    # Additionally, we can further subdivide the valid input domain into 4 meaningful classes over the ring (Z, +, *), namely:
-    # 1. 0 (neutral element of summation)
-    # 2. 1 (neutral element of multiplication)
-    # 3. pos (positive integers)
-    # 4. neg (negative integers)
-    #
-    # Finally, we can consider 3 classes regarding divisibility:
-    # 1. x mod y == 0 (divisible)
-    # 2. x mod y != 0 (not divisible)
-    # 3. x / y == nan (not defined)
-    #
-    # To exhaustively test the function, we would need to test all possible combinations of these classes.
-    # To do so, we select a representative from each class and test all possible combinations of these representatives.
-    #
-    # We select the following representatives:
-    #
-    # Validity:
-    # 1. 2 (int)
-    # 2. 2.0 (float)
-    #
-    # Integer range:
-    # 1. 0
-    # 2. 1
-    # 3. 2
-    # 4. -2
-    #
-    # Divisibility:
-    # 1. (4, 2)
-    # 2. (3, 2)
-    # 3. (4, 0)
-    #
-    # The brute-force way to cover all possible combinations would be to consider the cartesian product of the representatives:
-    # (2.0, 4, 3, 2, 1, 0, -1, -2, -3, -4) x (2.0, 4, 3, 2, 1, 0, -1, -2, -3, -4)
-    #
-    # (dividend, divisor, quotient)
-    # ---
-    # (2.0, 4, TypeError)
-    # ...
-    # (2.0, -4, TypeError)
-    # (4, 4, 1)
-    # (4, 3, 1)
-    # (4, 2, 2)
-    # (4, 1, 4)
-    # (4, 0, math.nan)
-    # (4, -1, -4)
-    # (4, -2, -2)
-    # (4, -3, -1)
-    # (4, -4, -1)
-    # (3, 4, 0)
-    # (3, 3, 1)
-    # (3, 2, 1)
-    # (3, 1, 3)
-    # (3, 0, math.nan) !
-    # (3, -1, -3)
-    # (3, -2, -1)
-    # (3, -3, -1)
-    # (3, -4, -1)
-    # (2, 4, 0) !
-    # (2, 3, 0)
-    # (2, 2, 1)
-    # (2, 1, 2)
-    # (2, 0, math.nan) !
-    # (2, -1, -2)
-    # (2, -2, -1)
-    # (2, -3, -1)
-    # (2, -4, -1) !
-    # (1, 4, 0) !
-    # (1, 3, 0) !
-    # (1, 2, 0)
-    # (1, 1, 1)
-    # (1, -1, -1)
-    # (1, -2, -1)
-    # (1, -3, -1) !
-    # (1, -4, -1) !
-    # (0, 4, 0) !
-    # (0, 3, 0) !
-    # (0, 2, 0)
-    # (0, 1, 0)
-    # (0, 0, math.nan)
-    # (0, -1, 0)
-    # (0, -2, 0)
-    # (0, -3, 0) !
-    # (0, -3, 0) !
-    # ...
-    # (-4, 4, 1)
-    # (-4, 3, -2)
-    # (-4, 2, -2)
-    # (-4, 1, -4)
-    # (-4, 0, math.nan) !
-    # (-4, -1, 4)
-    # (-4, -2, 2)
-    # (-4, -3, 1)
-    # (-4, -4, 1)
-    #
-    # However, many of these problems are equivalent and, given our knowledge about the behaviour and implementation,
-    # do not provide any additional information regarding the correctness. I have highlighted some of these with a !.
-    #
-    # Perhaps a more succinct selection of tests would be the following:
-    #
-    # (dividend, divisor, quotient)
-    # ---
-    # (2.0, 4, TypeError)
-    # (4, 2.0, TypeError)
-    # (4, 4, 1)
-    # (4, 3, 1)
-    # (4, 2, 2)
-    # (4, 1, 4)
-    # (4, 0, math.nan)
-    # (4, -1, -4)
-    # (4, -2, -2)
-    # (4, -3, -2)
-    # (4, -4, -1)
-    # (3, 4, 0)
-    # (3, 3, 1)
-    # (3, 2, 1)
-    # (3, 1, 3)
-    # (3, -1, -3)
-    # (3, -2, -2)
-    # (3, -3, -1)
-    # (3, -4, -1)
-    # (2, 3, 0)
-    # (2, 2, 1)
-    # (2, 1, 2)
-    # (2, -1, -2)
-    # (2, -2, -1)
-    # (2, -3, -1)
-    # (1, 2, 0)
-    # (1, 1, 1)
-    # (1, -1, -1)
-    # (1, -2, -1)
-    # (0, 2, 0)
-    # (0, 1, 0)
-    # (0, 0, math.nan)
-    # (0, -1, 0)
-    # (0, -2, 0)
-    # (-1, 2, -1)
-    # (-1, 1, -1)
-    # (-1, -1, 1)
-    # (-1, -2, 0)
-    # (-2, 3, -1)
-    # (-2, 2, -1)
-    # (-2, 1, -2)
-    # (-2, -1, 2)
-    # (-2, -2, 1)
-    # (-2, -3, 0)
-    # (-3, 4, -1)
-    # (-3, 3, -1)
-    # (-3, 2, -2)
-    # (-3, 1, -3)
-    # (-3, -1, 3)
-    # (-3, -2, 1)
-    # (-3, -3, 1)
-    # (-3, -4, 0)
-    # (-4, 4, -1)
-    # (-4, 3, -2)
-    # (-4, 2, -2)
-    # (-4, 1, -4)
-    # (-4, 0, math.nan)
-    # (-4, -1, 4)
-    # (-4, -2, 2)
-    # (-4, -3, 1)
-    # (-4, -4, 1)
-    #
-    # Of course it is impossible to test all possible combinations, so one might decide to drop some
-    # of the tests above. Now let's see how we can implement this in pytest:
+TEST_DIVIDE_INT_CASES = [
+    (4, 4, 1),
+    (4, 3, 1),
+    (4, 2, 2),
+    (4, 1, 4),
+    (4, -1, -4),
+    (4, -2, -2),
+    (4, -3, -2),
+    (4, -4, -1),
+    (3, 4, 0),
+    (3, 3, 1),
+    (3, 2, 1),
+    (3, 1, 3),
+    (3, -1, -3),
+    (3, -2, -2),
+    (3, -3, -1),
+    (3, -4, -1),
+    (2, 3, 0),
+    (2, 2, 1),
+    (2, 1, 2),
+    (2, -1, -2),
+    (2, -2, -1),
+    (2, -3, -1),
+    (1, 2, 0),
+    (1, 1, 1),
+    (1, -1, -1),
+    (1, -2, -1),
+    (0, 2, 0),
+    (0, 1, 0),
+    (0, -1, 0),
+    (0, -2, 0),
+    (-1, 2, -1),
+    (-1, 1, -1),
+    (-1, -1, 1),
+    (-1, -2, 0),
+    (-2, 3, -1),
+    (-2, 2, -1),
+    (-2, 1, -2),
+    (-2, -1, 2),
+    (-2, -2, 1),
+    (-2, -3, 0),
+    (-3, 4, -1),
+    (-3, 3, -1),
+    (-3, 2, -2),
+    (-3, 1, -3),
+    (-3, -1, 3),
+    (-3, -2, 1),
+    (-3, -3, 1),
+    (-3, -4, 0),
+    (-4, 4, -1),
+    (-4, 3, -2),
+    (-4, 2, -2),
+    (-4, 1, -4),
+    (-4, -1, 4),
+    (-4, -2, 2),
+    (-4, -3, 1),
+    (-4, -4, 1),
+]
 
-    TEST_DIVIDE_INT_CASES = [
-        (4, 4, 1),
-        (4, 3, 1),
-        (4, 2, 2),
-        (4, 1, 4),
-        (4, -1, -4),
-        (4, -2, -2),
-        (4, -3, -2),
-        (4, -4, -1),
-        (3, 4, 0),
-        (3, 3, 1),
-        (3, 2, 1),
-        (3, 1, 3),
-        (3, -1, -3),
-        (3, -2, -2),
-        (3, -3, -1),
-        (3, -4, -1),
-        (2, 3, 0),
-        (2, 2, 1),
-        (2, 1, 2),
-        (2, -1, -2),
-        (2, -2, -1),
-        (2, -3, -1),
-        (1, 2, 0),
-        (1, 1, 1),
-        (1, -1, -1),
-        (1, -2, -1),
-        (0, 2, 0),
-        (0, 1, 0),
-        (0, -1, 0),
-        (0, -2, 0),
-        (-1, 2, -1),
-        (-1, 1, -1),
-        (-1, -1, 1),
-        (-1, -2, 0),
-        (-2, 3, -1),
-        (-2, 2, -1),
-        (-2, 1, -2),
-        (-2, -1, 2),
-        (-2, -2, 1),
-        (-2, -3, 0),
-        (-3, 4, -1),
-        (-3, 3, -1),
-        (-3, 2, -2),
-        (-3, 1, -3),
-        (-3, -1, 3),
-        (-3, -2, 1),
-        (-3, -3, 1),
-        (-3, -4, 0),
-        (-4, 4, -1),
-        (-4, 3, -2),
-        (-4, 2, -2),
-        (-4, 1, -4),
-        (-4, -1, 4),
-        (-4, -2, 2),
-        (-4, -3, 1),
-        (-4, -4, 1),
-    ]
+TEST_DIVIDE_INT_NAN_CASES = [
+    (4, 0, math.nan),
+    (0, 0, math.nan),
+    (-4, 0, math.nan),
+]
 
-    TEST_DIVIDE_INT_NAN_CASES = [
-        (4, 0, math.nan),
-        (0, 0, math.nan),
-        (-4, 0, math.nan),
-    ]
+TEST_DIVIDE_INT_ERR_CASES = [
+    (2.0, 2.0, TypeError),
+    (2.0, 4, TypeError),
+    (4, 2.0, TypeError),
+]
 
-    TEST_DIVIDE_INT_ERR_CASES = [
-        (2.0, 2.0, TypeError),
-        (2.0, 4, TypeError),
-        (4, 2.0, TypeError),
-    ]
 
-    @pytest.mark.parametrize(("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_CASES)
-    def test_divide_int(self, dividend, divisor, quotient):
-        assert divide_int(dividend, divisor) == quotient
+@pytest.mark.parametrize(("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_CASES)
+def test_divide_int(dividend, divisor, quotient):
+    assert divide_int(dividend, divisor) == quotient
 
-    @pytest.mark.nan
-    @pytest.mark.parametrize(
-        ("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_NAN_CASES
-    )
-    def test_divide_int_nan(self, dividend, divisor, quotient):
-        assert math.isnan(divide_int(dividend, divisor))
 
-    ### Handling errors
-    # You can use the `@pytest` decorator to test for exceptions.
+@pytest.mark.nan
+@pytest.mark.parametrize(("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_NAN_CASES)
+def test_divide_int_nan(dividend, divisor, quotient):
+    assert math.isnan(divide_int(dividend, divisor))
 
-    @pytest.mark.raises
-    @pytest.mark.parametrize(("dividend", "divisor", "type"), TEST_DIVIDE_INT_ERR_CASES)
-    def test_divide_int_err(self, dividend, divisor, type):
-        with pytest.raises(type) as e:
+
+### Handling errors
+# You can use the `@pytest` decorator to test for exceptions.
+
+
+@pytest.mark.raises
+@pytest.mark.parametrize(("dividend", "divisor", "type"), TEST_DIVIDE_INT_ERR_CASES)
+def test_divide_int_err(dividend, divisor, type):
+    with pytest.raises(type) as e:
+        divide_int(dividend, divisor)
+
+
+# We can also aggregate all of these into a single test function.
+# A possible approach is to combine the inputs and the expected output, and then treat the errors a special case.
+
+
+def _test_divide_int_vmerged(dividend, divisor, expected):
+    if isinstance(expected, type) and issubclass(expected, Exception):
+        with pytest.raises(expected):
             divide_int(dividend, divisor)
+    elif math.isnan(expected):
+        assert math.isnan(divide_int(dividend, divisor))
+    else:
+        assert divide_int(dividend, divisor) == expected
 
-    # We can also aggregate all of these into a single test function.
-    # A possible approach is to combine the inputs and the expected output, and then treat the errors a special case.
 
-    def _test_divide_int_vmerged(self, dividend, divisor, expected):
-        if isinstance(expected, type) and issubclass(expected, Exception):
-            with pytest.raises(expected):
-                divide_int(dividend, divisor)
-        elif math.isnan(expected):
-            assert math.isnan(divide_int(dividend, divisor))
-        else:
-            assert divide_int(dividend, divisor) == expected
+@pytest.mark.parametrize(
+    ("dividend", "divisor", "expected"),
+    [
+        *TEST_DIVIDE_INT_CASES,
+        *TEST_DIVIDE_INT_NAN_CASES,
+        *TEST_DIVIDE_INT_ERR_CASES,
+    ],
+)
+def test_divide_int_vmerged(dividend, divisor, expected):
+    _test_divide_int_vmerged(dividend, divisor, expected)
 
-    @pytest.mark.parametrize(
-        ("dividend", "divisor", "expected"),
-        [
-            *TEST_DIVIDE_INT_CASES,
-            *TEST_DIVIDE_INT_NAN_CASES,
-            *TEST_DIVIDE_INT_ERR_CASES,
+
+## Parametrizing fixtures
+
+# Another possibility to parametrize the tests is to directly parametrize a dependent fixture like so:
+@pytest.fixture(
+    params=[
+        *TEST_DIVIDE_INT_CASES,
+        *TEST_DIVIDE_INT_NAN_CASES,
+        *TEST_DIVIDE_INT_ERR_CASES,
+    ]
+)
+def args_divide_int(request):
+    return request.param
+
+
+def test_divide_int_vfixture(args_divide_int):
+    dividend, divisor, quotient = args_divide_int
+    _test_divide_int_vmerged(dividend, divisor, quotient)
+
+
+## Parametrize using hooks
+#
+# A very powerful feature for parametrizing tests is to use the `pytest_generate_tests` hook (see top of script).
+# This hook allows you to generate tests dynamically based on some input.
+# It will run every time that you call a test function within the scope where the hook is defined.
+
+
+def test_divide_int_vhook(divide_int_cases):
+    dividend, divisor, quotient = divide_int_cases
+    _test_divide_int_vmerged(dividend, divisor, quotient)
+
+
+## Dynamic test generation
+#
+# Sometimes, we want to generate tests dynamically based on some input.
+# For instance, it is very cumbersome to write all possible combinations of inputs and outputs for divide_int.
+#
+# However, suppose we had a way to generate these tests automatically.
+# That is, for a subset of (input, output) pairs, we can define a function f s.t. f(input) = output.
+# Obviously, for all possible (input, output) pairs, this function would be the implementation of divide_int.
+# However, in some cases we can define an generating function for a subset that is easier to write and understand,
+# or which is already tested and verified.
+#
+# For instance, we know that the internal implementation of / and math.floor in Python is correct.
+# So we can use this to generate tests for divide_int:
+
+
+@pytest.fixture(
+    params=[
+        *[
+            (a, b, math.floor(a / b))
+            for a, b in it.product(range(-4, 5), range(-4, 5))
+            if b != 0
         ],
-    )
-    def test_divide_int_vmerged(self, dividend, divisor, expected):
-        self._test_divide_int_vmerged(dividend, divisor, expected)
+        *TEST_DIVIDE_INT_NAN_CASES,
+        *TEST_DIVIDE_INT_ERR_CASES,
+    ]
+)
+def divide_int_cases_vgen(request):
+    return request.param
 
-    ## Parametrizing fixtures
 
-    # Another possibility to parametrize the tests is to directly parametrize a dependent fixture like so:
-    @pytest.fixture(
-        params=[
-            *TEST_DIVIDE_INT_CASES,
-            *TEST_DIVIDE_INT_NAN_CASES,
-            *TEST_DIVIDE_INT_ERR_CASES,
-        ]
-    )
-    def args_divide_int(self, request):
-        return request.param
+def test_divide_int_vgen(divide_int_cases_vgen):
+    dividend, divisor, quotient = divide_int_cases_vgen
+    _test_divide_int_vmerged(dividend, divisor, quotient)
 
-    def test_divide_int_vfixture(self, args_divide_int):
-        dividend, divisor, quotient = args_divide_int
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    ## Parametrize using hooks
-    #
-    # A very powerful feature for parametrizing tests is to use the `pytest_generate_tests` hook (see top of script).
-    # This hook allows you to generate tests dynamically based on some input.
-    # It will run every time that you call a test function within the scope where the hook is defined.
+# Of course, this is not very useful for divide_int, but it can be very useful for more complex functions.
+# For instance, we could use this for a function that computes the point-wise integer division on tensors
+# and use this implementation of the division to check the correctness of every single element of the outputs tensor.
 
-    def test_divide_int_vhook(self, divide_int_cases):
-        dividend, divisor, quotient = divide_int_cases
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
+## Fixture Composition: pytest-lazy-fixture
+# Let's say we want to compose a test from multiple fixtures.
 
-    ## Dynamic test generation
-    #
-    # Sometimes, we want to generate tests dynamically based on some input.
-    # For instance, it is very cumbersome to write all possible combinations of inputs and outputs for divide_int.
-    #
-    # However, suppose we had a way to generate these tests automatically.
-    # That is, for a subset of (input, output) pairs, we can define a function f s.t. f(input) = output.
-    # Obviously, for all possible (input, output) pairs, this function would be the implementation of divide_int.
-    # However, in some cases we can define an generating function for a subset that is easier to write and understand,
-    # or which is already tested and verified.
-    #
-    # For instance, we know that the internal implementation of / and math.floor in Python is correct.
-    # So we can use this to generate tests for divide_int:
 
-    @pytest.fixture(
-        params=[
-            *[
-                (a, b, math.floor(a / b))
-                for a, b in it.product(range(-4, 5), range(-4, 5))
-                if b != 0
-            ],
-            *TEST_DIVIDE_INT_NAN_CASES,
-            *TEST_DIVIDE_INT_ERR_CASES,
-        ]
-    )
-    def divide_int_cases_vgen(self, request):
-        return request.param
+@pytest.fixture(params=TEST_DIVIDE_INT_CASES)
+def divide_int_base_cases(request):
+    return request.param
 
-    def test_divide_int_vgen(self, divide_int_cases_vgen):
-        dividend, divisor, quotient = divide_int_cases_vgen
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # Of course, this is not very useful for divide_int, but it can be very useful for more complex functions.
-    # For instance, we could use this for a function that computes the point-wise integer division on tensors
-    # and use this implementation of the division to check the correctness of every single element of the outputs tensor.
+@pytest.fixture(params=TEST_DIVIDE_INT_NAN_CASES)
+def divide_int_nan_cases(request):
+    return request.param
 
-    ## Fixture Composition: pytest-lazy-fixture
-    # Let's say we want to compose a test from multiple fixtures.
 
-    @pytest.fixture(params=TEST_DIVIDE_INT_CASES)
-    def divide_int_base_cases(self, request):
-        return request.param
+@pytest.fixture(params=TEST_DIVIDE_INT_ERR_CASES)
+def divide_int_err_cases(request):
+    return request.param
 
-    @pytest.fixture(params=TEST_DIVIDE_INT_NAN_CASES)
-    def divide_int_nan_cases(self, request):
-        return request.param
 
-    @pytest.fixture(params=TEST_DIVIDE_INT_ERR_CASES)
-    def divide_int_err_cases(self, request):
-        return request.param
+@pytest.fixture()
+def divide_int_random():
+    dividend = random.randint(-100, 100)
+    divisor = random.randint(-100, 100)
+    divisor = divisor if divisor != 0 else 1
+    quotient = math.floor(dividend / divisor)
+    return (dividend, divisor, quotient)
 
-    @pytest.fixture()
-    def divide_int_random(self):
-        dividend = random.randint(-100, 100)
-        divisor = random.randint(-100, 100)
-        divisor = divisor if divisor != 0 else 1
-        quotient = math.floor(dividend / divisor)
-        return (dividend, divisor, quotient)
 
-    # Unforunately, there is no way we can pass these fixtures directly to a parametrized test.
-    # We cannot pass fixtures to params of parametrized fixtures:
+# Unforunately, there is no way we can pass these fixtures directly to a parametrized test.
+# We cannot pass fixtures to params of parametrized fixtures:
 
-    # @pytest.fixture(params=[
-    #     *divide_int_base_cases,
-    #     *divide_int_nan_cases,
-    #     *divide_int_err_cases
-    # ])
-    # def divide_int_all_cases(self, request):
-    #     return request.params
+# @pytest.fixture(params=[
+#     *divide_int_base_cases,
+#     *divide_int_nan_cases,
+#     *divide_int_err_cases
+# ])
+# def divide_int_all_cases(self, request):
+#     return request.params
 
-    # And we cannot pass the fixture directly to @pytest.mark.parametrize decorator of the test function:
+# And we cannot pass the fixture directly to @pytest.mark.parametrize decorator of the test function:
 
-    # @pytest.mark.parametrize(
-    #     ("dividend", "divisor", "quotient"),
-    #     divide_int_cases
-    # )
-    # def test_divide_int_comp_(self, dividend, divisor, quotient):
-    #     self._test_divide_int_vmerged(dividend, divisor, quotient)
+# @pytest.mark.parametrize(
+#     ("dividend", "divisor", "quotient"),
+#     divide_int_cases
+# )
+# def test_divide_int_comp_(self, dividend, divisor, quotient):
+#     self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # Of course, we could pass the fixtures to the text function like so:
-    # def test_divide_int_comp_(self, divide_int_base_cases, divide_int_nan_cases):
-    #     dividend, divisor, quotient = divide_int_base_cases
-    #     self._test_divide_int_vmerged(dividend, divisor, quotient)
+# Of course, we could pass the fixtures to the text function like so:
+# def test_divide_int_comp_(self, divide_int_base_cases, divide_int_nan_cases):
+#     dividend, divisor, quotient = divide_int_base_cases
+#     self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # But this will not lead to the desired behaviour because we will get the cartesian product
-    # of the fixtures, which is not what we want.
+# But this will not lead to the desired behaviour because we will get the cartesian product
+# of the fixtures, which is not what we want.
 
-    # However, we can use the pytest-lazy-fixture plugin to achieve the desired behaviour:
+# However, we can use the pytest-lazy-fixture plugin to achieve the desired behaviour:
 
-    @pytest.mark.parametrize(
-        ("args"),
-        [
-            (5, 5, 1),
-            lazy_fixture("divide_int_base_cases"),
-            lazy_fixture("divide_int_nan_cases"),
-            lazy_fixture("divide_int_err_cases"),
-            lazy_fixture("divide_int_random"),
-        ],
-    )
-    def test_divide_int_comp(self, args):
-        print(args)
-        dividend, divisor, quotient = args
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # We can also pass lazy_fixtures to params of parametrized fixtures:
-    @pytest.fixture(
-        params=[
-            lazy_fixture("divide_int_base_cases"),
-            lazy_fixture("divide_int_nan_cases"),
-            lazy_fixture("divide_int_nan_cases"),
-            lazy_fixture("divide_int_random"),
-        ]
-    )
-    def divide_int_ext_cases(self, request):
-        return request.param
+@pytest.mark.parametrize(
+    ("args"),
+    [
+        (5, 5, 1),
+        lazy_fixture("divide_int_base_cases"),
+        lazy_fixture("divide_int_nan_cases"),
+        lazy_fixture("divide_int_err_cases"),
+        lazy_fixture("divide_int_random"),
+    ],
+)
+def test_divide_int_comp(args):
+    print(args)
+    dividend, divisor, quotient = args
+    _test_divide_int_vmerged(dividend, divisor, quotient)
 
-    def test_divide_int_ext(self, divide_int_ext_cases):
-        dividend, divisor, quotient = divide_int_ext_cases
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # We can also use lazy-fixture on a single argument:
-    @pytest.fixture(params=[random.randint(-100, 100) for _ in range(10)])
-    def random_nonzero(self, request):
-        return request.param if request.param != 0 else 1
+# We can also pass lazy_fixtures to params of parametrized fixtures:
+@pytest.fixture(
+    params=[
+        lazy_fixture("divide_int_base_cases"),
+        lazy_fixture("divide_int_nan_cases"),
+        lazy_fixture("divide_int_nan_cases"),
+        lazy_fixture("divide_int_random"),
+    ]
+)
+def divide_int_ext_cases(request):
+    return request.param
 
-    @pytest.fixture(params=[*range(10)])
-    def range10(self, request):
-        return request.param
 
-    @pytest.fixture(
-        params=[
-            lazy_fixture("range10"),
-        ]
-    )
-    def multiples2(self, request):
-        return 2 * request.param
+def test_divide_int_ext(divide_int_ext_cases):
+    dividend, divisor, quotient = divide_int_ext_cases
+    _test_divide_int_vmerged(dividend, divisor, quotient)
 
-    @pytest.mark.parametrize(
-        ("dividend", "divisor", "quotient"),
-        [
-            (0, lazy_fixture("random_nonzero"), 0),
-            (lazy_fixture("random_nonzero"), 1, lazy_fixture("random_nonzero")),
-            (lazy_fixture("multiples2"), 2, lazy_fixture("range10")),
-        ],
-    )
-    def test_divide_int_single(self, dividend, divisor, quotient):
-        self._test_divide_int_vmerged(dividend, divisor, quotient)
 
-    # Of course, you need to make sure that the parametrized lazy fixtures have the same length and that they are compatible.
+# We can also use lazy-fixture on a single argument:
+@pytest.fixture(params=[random.randint(-100, 100) for _ in range(10)])
+def random_nonzero(request):
+    return request.param if request.param != 0 else 1
+
+
+@pytest.fixture(params=[*range(10)])
+def range10(request):
+    return request.param
+
+
+@pytest.fixture(
+    params=[
+        lazy_fixture("range10"),
+    ]
+)
+def multiples2(request):
+    return 2 * request.param
+
+
+@pytest.mark.parametrize(
+    ("dividend", "divisor", "quotient"),
+    [
+        (0, lazy_fixture("random_nonzero"), 0),
+        (lazy_fixture("random_nonzero"), 1, lazy_fixture("random_nonzero")),
+        (lazy_fixture("multiples2"), 2, lazy_fixture("range10")),
+    ],
+)
+def test_divide_int_single(dividend, divisor, quotient):
+    _test_divide_int_vmerged(dividend, divisor, quotient)
+
+
+# Of course, you need to make sure that the parametrized lazy fixtures have the same length and that they are compatible.
 
 
 class TestCustomModel(object):
