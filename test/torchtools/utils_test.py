@@ -8,20 +8,15 @@ import itertools as it
 from torchtools.utils import divide_int, CustomModel
 
 
-def pytest_generate_tests(metafunc):
-    if "test_divide_int_vhook" in metafunc.function.__name__:
-        all_cases = [
-            *TEST_DIVIDE_INT_CASES,
-            *TEST_DIVIDE_INT_ERR_CASES,
-        ]
-        metafunc.parametrize("divide_int_cases", all_cases)
+random.seed(42)
+torch.manual_seed(42)
 
 
 ### Parametrizing tests
 
 # There are three diffent mechanisms to parametrize tests in pytest:
 # 1. Using the `@pytest.mark.parametrize` decorator to annotate a test function
-# 2. Using the `parametrize` argument of the `@pytest.fixture` decorator
+# 2. Using the `params` argument of the `@pytest.fixture` decorator
 # 3. Using the `pytest_generate_tests` hook to generate tests dynamically
 
 ## Parametrizing tests with `@pytest.mark.parametrize`:
@@ -196,8 +191,9 @@ def pytest_generate_tests(metafunc):
 # (-4, -3, 1)
 # (-4, -4, 1)
 #
-# Of course it is impossible to test all possible combinations, so one might decide to drop some
-# of the tests above. Now let's see how we can implement this in pytest:
+# Of course it is impossible to test all possible combinations, and one could decide to drop some of the test cases above.
+# This is a design decision that should be made based on the requirements of the project and the expected behaviour of the function.
+# Now let's see how we can implement this in pytest:
 
 TEST_DIVIDE_INT_CASES = [
     (4, 4, 1),
@@ -272,13 +268,13 @@ TEST_DIVIDE_INT_ERR_CASES = [
 
 
 @pytest.mark.parametrize(("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_CASES)
-def test_divide_int(dividend, divisor, quotient):
+def test_divide__int(dividend, divisor, quotient):
     assert divide_int(dividend, divisor) == quotient
 
 
 @pytest.mark.nan
 @pytest.mark.parametrize(("dividend", "divisor", "quotient"), TEST_DIVIDE_INT_NAN_CASES)
-def test_divide_int_nan(dividend, divisor, quotient):
+def test_divide_int__nan(dividend, divisor, quotient):
     assert math.isnan(divide_int(dividend, divisor))
 
 
@@ -288,7 +284,7 @@ def test_divide_int_nan(dividend, divisor, quotient):
 
 @pytest.mark.raises
 @pytest.mark.parametrize(("dividend", "divisor", "type"), TEST_DIVIDE_INT_ERR_CASES)
-def test_divide_int_err(dividend, divisor, type):
+def test_divide_int__err(dividend, divisor, type):
     with pytest.raises(type) as e:
         divide_int(dividend, divisor)
 
@@ -297,7 +293,7 @@ def test_divide_int_err(dividend, divisor, type):
 # A possible approach is to combine the inputs and the expected output, and then treat the errors a special case.
 
 
-def _test_divide_int_vmerged(dividend, divisor, expected):
+def _test_divide_int__vmerged(dividend, divisor, expected):
     if isinstance(expected, type) and issubclass(expected, Exception):
         with pytest.raises(expected):
             divide_int(dividend, divisor)
@@ -315,8 +311,8 @@ def _test_divide_int_vmerged(dividend, divisor, expected):
         *TEST_DIVIDE_INT_ERR_CASES,
     ],
 )
-def test_divide_int_vmerged(dividend, divisor, expected):
-    _test_divide_int_vmerged(dividend, divisor, expected)
+def test_divide_int__vmerged(dividend, divisor, expected):
+    _test_divide_int__vmerged(dividend, divisor, expected)
 
 
 ## Parametrizing fixtures
@@ -333,9 +329,9 @@ def args_divide_int(request):
     return request.param
 
 
-def test_divide_int_vfixture(args_divide_int):
+def test_divide_int__vfixture(args_divide_int):
     dividend, divisor, quotient = args_divide_int
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 ## Parametrize using hooks
@@ -345,9 +341,18 @@ def test_divide_int_vfixture(args_divide_int):
 # It will run every time that you call a test function within the scope where the hook is defined.
 
 
-def test_divide_int_vhook(divide_int_cases):
+def pytest_generate_tests(metafunc):
+    if "test_divide_int__vhook" in metafunc.function.__name__:
+        all_cases = [
+            *TEST_DIVIDE_INT_CASES,
+            *TEST_DIVIDE_INT_ERR_CASES,
+        ]
+        metafunc.parametrize("divide_int_cases", all_cases)
+
+
+def test_divide_int__vhook(divide_int_cases):
     dividend, divisor, quotient = divide_int_cases
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 ## Dynamic test generation
@@ -380,9 +385,9 @@ def divide_int_cases_vgen(request):
     return request.param
 
 
-def test_divide_int_vgen(divide_int_cases_vgen):
+def test_divide_int__vgen(divide_int_cases_vgen):
     dividend, divisor, quotient = divide_int_cases_vgen
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 # Of course, this is not very useful for divide_int, but it can be very useful for more complex functions.
@@ -410,6 +415,7 @@ def divide_int_err_cases(request):
 
 @pytest.fixture()
 def divide_int_random():
+    random.seed(42)
     dividend = random.randint(-100, 100)
     divisor = random.randint(-100, 100)
     divisor = divisor if divisor != 0 else 1
@@ -423,24 +429,28 @@ def divide_int_random():
 # @pytest.fixture(params=[
 #     *divide_int_base_cases,
 #     *divide_int_nan_cases,
-#     *divide_int_err_cases
+#     *divide_int_err_cases,
+#     *divide_int_random
 # ])
-# def divide_int_all_cases(self, request):
+# def divide_int_all_cases(request):
 #     return request.params
 
 # And we cannot pass the fixture directly to @pytest.mark.parametrize decorator of the test function:
 
 # @pytest.mark.parametrize(
 #     ("dividend", "divisor", "quotient"),
-#     divide_int_cases
+#     divide_int_base_cases,
+#     divide_int_nan_cases,
+#     divide_int_err_cases,
+#     divide_int_random
 # )
-# def test_divide_int_comp_(self, dividend, divisor, quotient):
-#     self._test_divide_int_vmerged(dividend, divisor, quotient)
+# def test_divide_int__comp_(dividend, divisor, quotient):
+#     _test_divide_int__vmerged(dividend, divisor, quotient)
 
-# Of course, we could pass the fixtures to the text function like so:
-# def test_divide_int_comp_(self, divide_int_base_cases, divide_int_nan_cases):
+# Of course, we could pass the fixtures to the test function like so:
+# def test_divide_int__comp_(divide_int_base_cases, divide_int_nan_cases):
 #     dividend, divisor, quotient = divide_int_base_cases
-#     self._test_divide_int_vmerged(dividend, divisor, quotient)
+#     _test_divide_int__vmerged(dividend, divisor, quotient)
 
 # But this will not lead to the desired behaviour because we will get the cartesian product
 # of the fixtures, which is not what we want.
@@ -458,10 +468,9 @@ def divide_int_random():
         lazy_fixture("divide_int_random"),
     ],
 )
-def test_divide_int_comp(args):
-    print(args)
+def test_divide_int__comp(args):
     dividend, divisor, quotient = args
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 # We can also pass lazy_fixtures to params of parametrized fixtures:
@@ -477,9 +486,9 @@ def divide_int_ext_cases(request):
     return request.param
 
 
-def test_divide_int_ext(divide_int_ext_cases):
+def test_divide_int__ext(divide_int_ext_cases):
     dividend, divisor, quotient = divide_int_ext_cases
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 # We can also use lazy-fixture on a single argument:
@@ -510,11 +519,44 @@ def multiples2(request):
         (lazy_fixture("multiples2"), 2, lazy_fixture("range10")),
     ],
 )
-def test_divide_int_single(dividend, divisor, quotient):
-    _test_divide_int_vmerged(dividend, divisor, quotient)
+def test_divide_int__single(dividend, divisor, quotient):
+    _test_divide_int__vmerged(dividend, divisor, quotient)
 
 
 # Of course, you need to make sure that the parametrized lazy fixtures have the same length and that they are compatible.
+# Basically, you can understand the behaviour of lazy_fixture in @pytest.mark.parametrize as follows:
+#
+# 1. (lazy_fixture("param_fixture1"), single_value1) becomes:
+#
+#       (param_fixture1[0], single_value1),
+#       ...
+#       (param_fixture1[n], single_value1)
+#
+#   inside the test function.
+#
+# 2. (lazy_fixture("param_fixture1"), lazy_fixture("val_fixture1")) becomes:
+#
+#       (param_fixture1[0], val_fixture1),
+#       ...
+#       (param_fixture1[n], val_fixture1)
+#
+# 3. (lazy_fixture("param_fixture1"), lazy_fixture("param_fixture2")) becomes:
+#
+#       (param_fixture1[0], param_fixture2[0]),
+#       ...
+#       (param_fixture1[n], param_fixture2[n])
+#
+#   assuming that param_fixture1 and param_fixture2 have the same length AND dependencies!
+#   Otherwise, we obtain the cartesian product of the two fixtures, i.e.:
+#
+# 4. (lazy_fixture("param_fixture1"), lazy_fixture("param_fixture2")) becomes:
+#
+#       (param_fixture1[0], param_fixture2[0]),
+#       ...
+#       (param_fixture1[0], param_fixture2[n]),
+#       (param_fixture1[1], param_fixture2[0]),
+#       ...
+#       (param_fixture1[m], param_fixture2[n])
 
 
 class TestCustomModel(object):
@@ -617,6 +659,20 @@ class TestCustomModel(object):
         assert len(model.layers) == expected["length"]
 
     # Now for a more complex example where we want to test the forward method of the model.
+    # We start by defining a base test case configuration:
+
+    @pytest.fixture()
+    def base_args_forward(self, base_args):
+        input = torch.rand(1, 5)
+        model = CustomModel(**base_args)
+        return {"model": model, "input": input}
+
+    @pytest.fixture()
+    def base_expected_forward(self):
+        return {"output_shape": (1, 1)}
+
+    # Next, we define test cases with different batch sizes.
+    # These will use the base test case configuration and only change the batch size.
 
     @pytest.fixture(params=[1, 2, 3, 10])
     def batch_sizes(self, request):
@@ -629,9 +685,13 @@ class TestCustomModel(object):
             "model": CustomModel(**base_args),
         }
 
+    # We need to adapt the expected output shapes accordingly:
+
     @pytest.fixture(params=[lazy_fixture("batch_sizes")])
     def expected_batch_sizes(self, request):
         return {"output_shape": (request.param, 1)}
+
+    # Next, we define test cases with different input dimensions.
 
     @pytest.fixture(params=[1, 2, 5, 10])
     def input_dims(self, request):
@@ -646,6 +706,8 @@ class TestCustomModel(object):
     def expected_input_dims(self, request):
         return {"output_shape": (1, 1)}
 
+    # Finally, we define test cases with different output dimensions.
+
     @pytest.fixture(params=[1, 2, 7, 10])
     def output_dims(self, request):
         return request.param
@@ -659,21 +721,13 @@ class TestCustomModel(object):
     def expected_output_dims(self, request):
         return {"output_shape": (1, request.param)}
 
-    @pytest.fixture()
-    def base_args_forward(self, base_args):
-        input = torch.rand(1, 5)
-        model = CustomModel(**base_args)
-        return {"model": model, "input": input}
-
-    @pytest.fixture()
-    def base_expected_forward(self):
-        return {"output_shape": (1, 1)}
+    # And to close it off, let us define some test cases that modify the batch size and the output dimension jointly.
 
     @pytest.fixture(params=it.product([1, 2, 3, 10], [1, 2, 5, 10]))
-    def product_args_batch(self, request):
+    def product_batch_output(self, request):
         return request.param
 
-    @pytest.fixture(params=[lazy_fixture("product_args_batch")])
+    @pytest.fixture(params=[lazy_fixture("product_batch_output")])
     def args_batch_output(self, base_args, request):
         batch_size, output_dim = request.param
         input_dim = base_args["input_dim"]
@@ -682,10 +736,12 @@ class TestCustomModel(object):
         model = CustomModel(**args)
         return {"model": model, "input": input}
 
-    @pytest.fixture(params=[lazy_fixture("product_args_batch")])
+    @pytest.fixture(params=[lazy_fixture("product_batch_output")])
     def expected_batch_output(self, request):
         batch_size, output_dim = request.param
         return {"output_shape": (batch_size, output_dim)}
+
+    # Let us pass all these fixture to the forward test function:
 
     @pytest.mark.parametrize(
         ("args", "args_overrides", "expected", "expected_overrides"),
@@ -732,3 +788,5 @@ class TestCustomModel(object):
         model, input = args["model"], args["input"]
         output = model.forward(input)
         assert output.shape == expected["output_shape"]
+
+    # And that's it! Thanks for taking this advanced pytest workshop and happy testing! :)
